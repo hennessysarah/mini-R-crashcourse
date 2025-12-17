@@ -1,0 +1,595 @@
+---
+title: "Brain and Music Lab R Crash Course 2024"
+subtitle: "B&M Workshop Series"
+author: "Sarah Hennessy & Priscilla Perez"
+date: "January 19, 2024"
+output:
+  html_document:
+      theme: yeti
+      highlight: default
+      toc: true
+      toc_depth: 4
+      toc_float: true
+---
+
+
+# Section I: Basic Introduction
+
+This text here is not code.
+
+```{r}
+# this text is in a code block (a chunk) but it is a comment, so it will not execute
+```
+
+
+```{r}
+x = 2+2
+x
+```
+
+## Libraries
+
+```{r}
+# You only need to do this once for each package!
+#install.packages("psych")
+# install.packages("readxl")
+# install.packages("rmarkdown")
+```
+
+
+```{r}
+# you need to do this every time you open R
+library(psych)
+library(readxl)
+library(rmarkdown)
+```
+
+## Objects & Value Types
+
+```{r}
+# vector 
+vec = c("1","2","3","4","5")
+vec
+
+# factor
+fac = factor(c("cat","dog","mouse","dog"))
+
+
+# matrix, a 2x5
+mat = matrix(1:10, ncol = 5)
+dim(mat)
+mat
+
+# dataframe
+animal = factor(c("cat","dog","mouse","dog"))
+adoptee_number = c(1:4)
+df = data.frame(adoptee_number, animal)
+dim(df)
+View(df)
+
+# list
+lis = list(vec,fac,mat)
+lis
+
+```
+
+```{r}
+class(animal)
+class(adoptee_number)
+
+adoptee_number= as.character(adoptee_number)
+class(adoptee_number)
+adoptee_number= as.numeric(adoptee_number)
+class(adoptee_number)
+adoptee_number= as.factor(adoptee_number)
+class(adoptee_number)
+
+```
+
+## Exploring data
+
+```{r}
+data= read.csv("/Users/sarahhennessy/Documents/Projects/Comprehensive_R/data.csv")
+```
+
+```{r}
+names(data)
+
+data$age_group = as.factor(data$age_group)
+
+data$gender = as.factor(data$gender)
+data$condition = as.factor(data$condition)
+```
+
+
+### Wide and Long
+
+Long to wide
+
+```{r}
+data_wide = reshape(data, idvar = c("id","age_group","gender"),
+                    timevar = "condition",
+                    direction = "wide")
+```
+
+```{r}
+colnames(data_wide)
+```
+
+Wide to long
+
+```{r}
+#fix column headers so that they go Condition_task instead of task.Condition
+library(tidyr)
+library(dplyr)
+library(plyr)
+
+colnames(data_wide)[colnames(data_wide) == "memory.Nostalgia"] <- "Nostalgia_memory"
+# you do the next one below!
+colnames(data_wide)[colnames(data_wide) == "memory.Control"] <- "Control_memory"
+
+
+colnames(data_wide)
+
+```
+
+
+Lets break it down. 
+
+gather..
+```{r}
+data_long = data_wide %>%
+  gather(key = var, value=val, -(id:gender))
+```
+
+separate
+```{r}
+data_long = data_wide %>%
+  gather(key = var, value=val, -(id:gender))%>%
+  separate(var, c("condition","var"))
+
+```
+
+
+put it all together with spread!
+
+```{r}
+data_long = data_wide %>%
+  gather(key = var, value=val, -(id:gender))%>%
+  separate(var, c("condition","var"))%>%
+  spread(key = var, value= val)
+```
+
+# Section II Plotting 
+
+```{r}
+library(ggplot2)
+```
+
+### 1. Aesthetic mapping
+
+Creating the graph and setting the aesthetics, haven't added a geometric object (graph type - bar, scatterplot, histogram, etc.)
+
+```{r}
+myplot <- ggplot(data, aes(x = condition, y = memory))
+
+myplot
+```
+
+### 2. Geometric object
+
+Now adding geometric objects
+
+Histogram
+
+```{r}
+myplot = ggplot(data, aes(x = memory)) +
+  geom_histogram()
+
+myplot
+```
+
+Boxplot
+
+```{r}
+myplot = ggplot(data, aes(x = condition, y = memory)) +
+ geom_boxplot()
+
+myplot
+```
+
+```{r}
+myplot = ggplot(data, aes(x = condition, y = memory, color = condition)) +
+ geom_boxplot()
+
+myplot
+```
+
+Note: you can stack geometric objects
+
+```{r}
+myplot <- ggplot(data_wide, aes(x = Nostalgia_memory, y = Control_memory, color = age_group)) +
+  geom_point() + 
+  geom_smooth(method = lm)
+
+myplot
+```
+
+### 3. Statistical transformations
+
+You can make statistical transformations 
+
+```{r}
+myplot <- ggplot(data_wide, aes(x = log10(Nostalgia_memory), y = Control_memory, color = age_group)) +
+  geom_point() + 
+  geom_smooth(method = lm)
+
+myplot
+```
+
+### 4. Customize!
+
+```{r}
+# make a summary
+mem_sum <- ddply(data, c("age_group", "condition"), summarise,
+                            N = length(memory[!is.na(memory)]),
+                            Mean = mean(memory, na.rm=TRUE),
+                            SD = sd(memory, na.rm=TRUE),
+                            SE = SD / sqrt(N))
+```
+
+You can customize as much as you want. Here are some examples:
+
+```{r}
+myplot <- ggplot(mem_sum, aes(x=condition, y=Mean, colour=age_group, group = age_group)) + 
+  geom_errorbar(aes(ymin=Mean-SE, ymax=Mean+SE), colour="gray43", width=.1, position=position_dodge(0.1)) +
+  geom_line(position=position_dodge(0.1)) +
+  geom_point(position=position_dodge(0.1), size=2, shape=21, fill="white")  + 
+  xlab("Condition") +   
+  ylab("Memory Score") +
+  ggtitle("Memory vividness: age group by condition") +
+  scale_colour_brewer(palette = "Pastel1") +
+  theme_bw() +
+  labs(colour = "Age Group") +
+  theme(legend.position = "right",
+        text = element_text(family = "Times"),
+        axis.text.x = element_text(colour = "black", size = 10, family  = "Times"),
+        axis.text.y = element_text(colour = "black", size = 10, family = "Times"),
+        plot.title = element_text(colour = "black", size = 14, hjust = 0.5, family = "Times"),
+        legend.title.align = 0.5,
+        legend.box.background = element_rect(colour = "gray43")
+          ) 
+  
+myplot
+```
+
+```{r}
+myplot <- ggplot(mem_sum, aes(x=condition, y=Mean, fill=age_group)) + 
+  geom_bar(stat = "identity", width = 0.5, position=position_dodge(0.5)) +
+  geom_errorbar(aes(ymin=Mean-SE, ymax=Mean+SE), colour="gray43", width=.1, position=position_dodge(0.5)) +
+  xlab("Condition") +   
+  ylab("Memory Score") +
+  expand_limits(y=1) +
+  scale_y_continuous(breaks = seq(0,1, by =0.1)) +
+  ggtitle("Memory vividness: age group by condition") +
+  scale_fill_manual(name = "age_group",
+                      breaks = c("Older","Younger", "Neutral"), #what they ARE called 
+                      labels = c("Congruent!", "Incongruent!", "Neutral!"), #what you WANT THEM TO BE called
+                      values = c("yellow","cyan", "pink")) +
+  theme_bw() +
+  labs(fill = "Age Group") +
+  theme(axis.line = element_line(size = 1, colour = "black"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(), panel.background = element_blank(),
+        text = element_text(family = "Times", colour = "white"),
+        plot.background = element_rect(fill = "black", colour = "black"),
+        legend.background = element_blank(),
+        legend.box.background = element_blank(),
+        legend.key = element_rect(fill = "black"),
+        plot.title = element_text(hjust = 0.5),
+        axis.text.x = element_text(colour = "white", size = 10, angle = 45), #angle makes an angle!
+        axis.text.y = element_text(colour = "white", size = 10),
+        strip.background = element_rect(fill = "gray28"), #change the colors of your facet boxes 
+        strip.text = element_text(colour = "white"))
+          
+  
+myplot
+```
+
+```{r}
+myplot <- ggplot(mem_sum, aes(x=age_group, y=Mean, fill=age_group)) + 
+  geom_bar(stat = "identity", position=position_dodge(0.1), width = 0.5) +
+  geom_errorbar(aes(ymin=Mean-SE, ymax=Mean+SE), colour="gray43", width=.1, position=position_dodge(0.1)) +
+  xlab(" ") +   
+  ylab("Memory Score") +
+  scale_fill_brewer(palette = "Pastel2") +
+  theme_bw() +
+  labs(fill = "Age Group") +
+  theme(legend.position = "right",
+        text = element_text(family = "Times"),
+        axis.text.x = element_text(colour = "black", size = 10, family  = "Times"),
+        axis.text.y = element_text(colour = "black", size = 10, family = "Times"),
+        plot.title = element_text(colour = "black", size = 14, hjust = 0.5, family = "Times"),
+        legend.title.align = 0.5,
+        legend.box.background = element_rect(colour = "gray43")
+          ) +
+  facet_wrap(~condition)
+  
+myplot
+```
+
+
+# Section III Basic Stats 
+
+
+Independent Variable 1: age group
+  Levels: older younger
+  Data type: factor
+
+
+Independent Variable 2: condition
+  Levels: nostalgia control
+  Data type: factor
+  
+Dependent Variable: memory
+  Data type: numeric
+  
+  
+Check variable types so that they align with data types
+
+```{r}
+str(data)
+```
+
+
+## Test Normality
+
+
+Let's look at it first
+
+```{r}
+hist(data$memory)
+```
+
+Skewness
+
+```{r}
+library(moments)
+skewness(data$memory)
+```
+
+**What is this??**
+
+Skewness is a measure of symmetry, basically. 
+Negative skewness = mean < median (left skew)
+Positive skewness = mean > median (right skew)
+
+When you should worry: >1.96 or < -1.96
+
+A perfectly non-skewed data is where the mean = median, skewness = 0.
+
+Kurtosis
+```{r}
+kurtosis(data$memory)
+```
+
+**What is this??**
+
+Kurtosis is similar to skewness, in that it measures the data's distribution.
+It measures the tail shape of the data distribution/ how "peaked" the distribution is. 
+
+A thin-tailed data distribution has too much data in the middle.
+A fat-tailed data distribution has too much data on the tails. 
+
+A perfect normal distribution has 0 excess kurtosis. 
+
+The acceptable range for this is similar to skewness, above. 
+
+Shapiro Test
+
+```{r}
+shapiro.test(data$memory)
+```
+
+**How to report**
+
+> "A Shapiro-Wilk test demonstrated that the distribution of Memory was approximately normal (W = 0.99, p = 0.56; skewness = -0.19, kurtosis = 2.67)."
+
+## Chi-Squared
+
+```{r}
+chisq.test(data$age_group, data$gender)
+```
+
+**What is this??**
+
+This tests if 2 categorical variables are related in some population. 
+
+If the p value is less than p < 0.05, we reject the null hypothesis that the distribution of the variables are independent. Basically, that the groups differ in gender distribution. In this example, they are actually perfectly matched by design.
+
+**How to report** 
+
+> "An association between age group and gender was not observed, χ2(1) = 0, p=1."
+
+## Pearson's Correlation
+
+Let's look at the relationship between nostalgia memory and control memory. To do this we need to use WIDE data.
+
+
+```{r}
+cor.test(data_wide$Nostalgia_memory, data_wide$Control_memory)
+```
+
+**How to report**
+
+>"Memory vividness in the Nostalgia and Control conditions were not significantly correlated, r(48) = 0.008,t= 0.058, p >  0.05. "
+
+
+## T-Tests
+
+Independent (age group)
+
+need to use wide data again..but this time we need it wide where it is *spread by age group* (last time we spread by condition)...
+
+```{r}
+data_wide_age = reshape(data, idvar= c("id","condition","gender"),
+                        timevar = "age_group",
+                        direction = "wide")
+```
+
+independent t test
+```{r}
+t.test(data_wide_age$memory.Older, data_wide_age$memory.Younger )
+```
+
+what are our means? our SDs?
+
+```{r}
+mean(data_wide_age$memory.Older, na.rm = TRUE)
+sd(data_wide_age$memory.Older,na.rm = TRUE)
+
+```
+
+**How to report**
+
+>"Memory vividness was significantly higher in younger adults (M = 0.63, SD = 0.16) than older adults (M = 0.50, SD = .28), t(59) = 13.87, p <  0.001."
+
+
+Paired t test (condition)
+```{r}
+t.test(data_wide$Nostalgia_memory, data_wide$Control_memory, paired= TRUE)
+```
+
+what are our means? our SDs?
+
+```{r}
+
+```
+
+**How to report**
+
+>"Across participants, memory vividness was significantly higher in the Nostalgia condition (M = 0.70, SD = 0.17) than the Control condition (M = 0.40, SD = .21), t(49) = 8.09, p <  0.001."
+
+
+## Two-Way ANOVA
+
+use LONG data
+
+main effects only. We wont really use this one but just so you know how to do it.
+
+```{r}
+model <- aov(memory ~ condition + age_group, data = data)
+summary(model)
+```
+
+main effects and interactions
+
+```{r}
+model <- aov(memory ~ condition * age_group, data = data)
+summary(model)
+```
+
+main effects and interactions and a covariate
+
+```{r}
+model <- aov(memory ~ condition * age_group + gender, data = data)
+summary(model)
+```
+
+### Effect sizes 
+
+When reporting statistics in papers, you need to include eta squared, or effect size. These values do not immediately appear with this call. So, you have to do this:
+
+```{r}
+library(lsr)
+etaSquared(model, type =2, anova = FALSE)
+```
+
+### Post Hocs, using AOV
+
+What do the main effects mean??
+
+Tukey HSD
+
+```{r}
+TukeyHSD(model)
+```
+
+Ok, but what do all of those interaction effects mean? Let us explore with a simple effects test. Let's just pretend, first that we had a CONDITION X AGE interaction.
+
+First, split up into separate data sets. 
+
+```{r}
+Nostalgia = subset(data, condition == "Nostalgia")
+# you do the next one
+Control = subset(data, condition == "Control")
+
+```
+
+Then, run ANOVAs on group within each condition
+
+```{r}
+N_Out = aov(memory ~ age_group, data = Nostalgia)
+# you do the next one
+C_Out = aov(memory ~ age_group, data = Control)
+
+summary(N_Out)
+summary(C_Out)
+```
+
+Do a post hoc with Tukey to look at pairwise
+
+```{r}
+TukeyHSD(N_Out)
+TukeyHSD(C_Out)
+```
+
+Split it the other way now, by age group
+
+```{r}
+Old = subset(data, age_group == "Older")
+# you do the next one
+Young = subset(data, age_group == "Younger")
+
+```
+
+Then, run ANOVAs on group within each condition
+
+```{r}
+O_Out = aov(memory ~ condition, data = Old)
+Y_Out = aov(memory ~ condition, data = Young)
+
+summary(O_Out)
+summary(Y_Out)
+```
+
+Do a post hoc to look at pairwise
+
+```{r}
+TukeyHSD(O_Out)
+TukeyHSD(Y_Out)
+```
+
+**What is all of this??**
+
+We used ANOVA to determine if there are any statistically significant differences between conditions on a given dependent variable. 
+
+The null hypothesis states that the groups are *all the same*, and that the means are *not* statistically different from each other. 
+
+If a significant difference is found, it is called a **main effect**, and must then be interpreted using a post-hoc test. It spits out something called an **F ratio**, which is  **F = variation BETWEEN samples/ variation WITHIN samples**. The null hypothesis says that the F ratio is 1. 
+
+So, if it is greater than 1, it means that the variation BETWEEN your sample is greater than the variation WITHIN your sample. This means that there is something acting upon your data that makes a change in it that is OUTSIDE of the variation the comes from within individuals.
+
+Post hocs let you know where that main effect is coming from. They are *a posteriori* tests, which mean that they are performed *after* the ANOVA. Performing them before the ANOVA will increase your chances of obtaining a Type 1 error (false positive), and is generally considered poor practice. 
+
+**How to report**
+
+Note: If you have an interaction effect, you usually only report that (not any sig main effects).
+
+> "A 2-Way ANOVA revealed a significant interaction of Condition X Age Group, F(1,95) = 10.95, p < 0.01,η2_partial = 0.10. Post-hoc analysis using Tukey's HSD indicated that memory vividness was great during the Nostalgia condition than the Control condition across subjects, and, during the Control condition only, older adults had less vivid memories than younger adults".
+
+
+
+
+
